@@ -1,0 +1,12 @@
+= Geronimo Microprofile Reactive Streams Implementation
+
+== Artifact
+
+[source,xml]
+----
+<parent>
+  <groupId>org.apache.geronimo</groupId>
+  <artifactId>geronimo-reactive-streams</artifactId>
+  <version>${lib.version}</version>
+</parent>
+----
