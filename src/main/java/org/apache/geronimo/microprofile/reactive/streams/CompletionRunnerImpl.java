@@ -4,22 +4,21 @@ import java.util.concurrent.CompletionStage;
 
 import org.eclipse.microprofile.reactive.streams.CompletionRunner;
 import org.eclipse.microprofile.reactive.streams.spi.ReactiveStreamsEngine;
-import org.reactivestreams.Publisher;
 
-public class CompletionRunnerImpl<T> implements CompletionRunner<Void> {
-    private final Publisher<? extends T> publisher;
+public class CompletionRunnerImpl<T> implements CompletionRunner<T> {
+    private final GraphImpl graph;
 
-    public CompletionRunnerImpl(final Publisher<? extends T> publisher) {
-        this.publisher = publisher;
+    public CompletionRunnerImpl(final GraphImpl graph) {
+        this.graph = graph;
     }
 
     @Override
-    public CompletionStage<Void> run() {
-        return null;
+    public CompletionStage<T> run() {
+        return null;// todo
     }
 
     @Override
-    public CompletionStage<Void> run(final ReactiveStreamsEngine engine) {
-        return null;
+    public CompletionStage<T> run(final ReactiveStreamsEngine engine) {
+        return engine.buildCompletion(graph);
     }
 }

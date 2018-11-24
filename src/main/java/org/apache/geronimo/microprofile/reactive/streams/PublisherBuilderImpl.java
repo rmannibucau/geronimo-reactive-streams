@@ -3,6 +3,7 @@ package org.apache.geronimo.microprofile.reactive.streams;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.BinaryOperator;
 import java.util.function.Consumer;
@@ -10,6 +11,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collector;
+import java.util.stream.Collectors;
 
 import org.eclipse.microprofile.reactive.streams.CompletionRunner;
 import org.eclipse.microprofile.reactive.streams.ProcessorBuilder;
@@ -20,6 +22,7 @@ import org.eclipse.microprofile.reactive.streams.spi.Stage;
 import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
 
 public class PublisherBuilderImpl<T> implements PublisherBuilder<T> {
     private final GraphImpl graph;
@@ -107,47 +110,102 @@ public class PublisherBuilderImpl<T> implements PublisherBuilder<T> {
 
     @Override
     public CompletionRunner<Void> forEach(final Consumer<? super T> action) {
-        return null;
+        return new CompletionRunnerImpl<>(graph.append((Stage.SubscriberStage) () -> new Subscriber<T>() {
+            @Override
+            public void onSubscribe(final Subscription s) {
+                // no-op
+            }
+
+            @Override
+            public void onNext(final Object o) {
+                action.accept((T) o);
+            }
+
+            @Override
+            public void onError(final Throwable t) {
+                if (RuntimeException.class.isInstance(t)) {
+                    throw RuntimeException.class.cast(t);
+                }
+                if (Error.class.isInstance(t)) {
+                    throw Error.class.cast(t);
+                }
+                throw new IllegalStateException(t);
+            }
+
+            @Override
+            public void onComplete() {
+                // no-op
+            }
+        }));
     }
 
     @Override
     public CompletionRunner<Void> ignore() {
-        return null;
+        return forEach(it -> {});
     }
 
     @Override
     public CompletionRunner<Void> cancel() {
-        return null;
+        return new CompletionRunnerImpl<>(graph.append(new Stage.Cancel() {}));
     }
 
     @Override
-    public CompletionRunner<T> reduce(T identity, BinaryOperator<T> accumulator) {
-        return null;
+    public CompletionRunner<T> reduce(final T identity, final BinaryOperator<T> accumulator) {
+        final CompletionRunner<Optional<T>> delegate = reduce(accumulator);
+        return new CompletionRunner<T>() {
+            @Override
+            public CompletionStage<T> run() {
+                return delegate.run().thenApply(it -> it.orElse(identity));
+            }
+
+            @Override
+            public CompletionStage<T> run(final ReactiveStreamsEngine engine) {
+                return delegate.run(engine).thenApply(it -> it.orElse(identity));
+            }
+        };
     }
 
     @Override
-    public CompletionRunner<Optional<T>> reduce(BinaryOperator<T> accumulator) {
-        return null;
+    public CompletionRunner<Optional<T>> reduce(final BinaryOperator<T> accumulator) {
+        final AtomicReference<Optional<T>> result = new AtomicReference<>(Optional.empty());
+        final Collector<T, AtomicReference<Optional<T>>, Optional<T>> collector = Collector.of(
+                () -> result,
+                (r, v) -> {
+                    final T newValue = result.get()
+                            .map(it -> accumulator.apply(it, v))
+                            .orElse(v);
+                    result.set(Optional.ofNullable(newValue));
+                },
+                (a, a2) -> {
+                    if (a.get().isPresent() && a2.get().isPresent()) {
+                        a2.set(Optional.of(accumulator.apply(a.get().get(), a2.get().get())));
+                    } else if (a.get().isPresent()) {
+                        return a;
+                    }
+                    return a2;
+                },
+                AtomicReference::get);
+        return collect(collector);
     }
 
     @Override
     public CompletionRunner<Optional<T>> findFirst() {
-        return null;
+        return new CompletionRunnerImpl<>(graph.append(new Stage.FindFirst() {}));
     }
 
     @Override
-    public <R, A> CompletionRunner<R> collect(Collector<? super T, A, R> collector) {
-        return null;
+    public <R, A> CompletionRunner<R> collect(final Collector<? super T, A, R> collector) {
+        return new CompletionRunnerImpl<>(graph.append((Stage.Collect) () -> collector));
     }
 
     @Override
-    public <R> CompletionRunner<R> collect(Supplier<R> supplier, BiConsumer<R, ? super T> accumulator) {
-        return null;
+    public <R> CompletionRunner<R> collect(final Supplier<R> supplier, final BiConsumer<R, ? super T> accumulator) {
+        return collect(Collector.of(supplier, accumulator, (a, b) -> b));
     }
 
     @Override
     public CompletionRunner<List<T>> toList() {
-        return null;
+        return collect(Collectors.toList());
     }
 
     @Override
@@ -166,13 +224,13 @@ public class PublisherBuilderImpl<T> implements PublisherBuilder<T> {
     }
 
     @Override
-    public CompletionRunner<Void> to(Subscriber<? super T> subscriber) {
-        return null;
+    public CompletionRunner<Void> to(final Subscriber<? super T> subscriber) {
+        return new CompletionRunnerImpl<>(graph.append((Stage.SubscriberStage) () -> subscriber));
     }
 
     @Override
-    public <R> CompletionRunner<R> to(SubscriberBuilder<? super T, ? extends R> subscriber) {
-        return null;
+    public <R> CompletionRunner<R> to(final SubscriberBuilder<? super T, ? extends R> subscriber) {
+        return new CompletionRunnerImpl<>(graph.append((Stage.SubscriberStage) subscriber::build));
     }
 
     @Override
