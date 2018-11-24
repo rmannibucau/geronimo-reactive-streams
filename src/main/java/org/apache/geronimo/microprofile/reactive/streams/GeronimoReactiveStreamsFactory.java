@@ -16,6 +16,11 @@
  */
 package org.apache.geronimo.microprofile.reactive.streams;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
+
+import java.util.Collections;
 import java.util.Optional;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Supplier;
@@ -25,6 +30,7 @@ import org.eclipse.microprofile.reactive.streams.ProcessorBuilder;
 import org.eclipse.microprofile.reactive.streams.PublisherBuilder;
 import org.eclipse.microprofile.reactive.streams.ReactiveStreamsFactory;
 import org.eclipse.microprofile.reactive.streams.SubscriberBuilder;
+import org.eclipse.microprofile.reactive.streams.spi.Stage;
 import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
@@ -33,22 +39,22 @@ import org.reactivestreams.Subscriber;
 public class GeronimoReactiveStreamsFactory implements ReactiveStreamsFactory {
     @Override
     public <T> PublisherBuilder<T> fromPublisher(final Publisher<? extends T> publisher) {
-        return new PublisherBuilderImpl<>(publisher);
+        return new PublisherBuilderImpl<>(new GraphImpl().append((Stage.PublisherStage) () -> publisher));
     }
 
     @Override
     public <T> PublisherBuilder<T> of(final T t) {
-        return new PublisherBuilderImpl<>(new OfSubscriber<>(t));
+        return fromIterable(singletonList(t));
     }
 
     @Override
     public <T> PublisherBuilder<T> of(final T... ts) {
-        return new PublisherBuilderImpl<>(new OfSubscriber<>(ts));
+        return fromIterable(asList(ts));
     }
 
     @Override
     public <T> PublisherBuilder<T> empty() {
-        return new PublisherBuilderImpl<>(new OfSubscriber<>());
+        return of();
     }
 
     @Override
@@ -58,12 +64,12 @@ public class GeronimoReactiveStreamsFactory implements ReactiveStreamsFactory {
 
     @Override
     public <T> PublisherBuilder<T> fromIterable(final Iterable<? extends T> ts) {
-        return new PublisherBuilderImpl<>(new OfSubscriber<>(ts));
+        return new PublisherBuilderImpl<>(new GraphImpl().append((Stage.Of) () -> ts));
     }
 
     @Override
     public <T> PublisherBuilder<T> failed(final Throwable t) {
-        return new PublisherBuilderImpl<>(new FailedSubscriber<>(t));
+        return new PublisherBuilderImpl<>(new GraphImpl().append((Stage.Failed) () -> t));
     }
 
     @Override

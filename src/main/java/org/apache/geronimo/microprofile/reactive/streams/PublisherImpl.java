@@ -18,7 +18,6 @@ package org.apache.geronimo.microprofile.reactive.streams;
 
 import java.util.Collection;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Stream;
 
 import org.eclipse.microprofile.reactive.streams.spi.Graph;
 import org.eclipse.microprofile.reactive.streams.spi.Stage;
@@ -27,12 +26,13 @@ import org.reactivestreams.Subscriber;
 
 // todo: reimplement a light stream (we don't need all features just map, flatmap and filter) to support this pging model
 class PublisherImpl<T> implements Publisher<T> {
-    private Stream<StageMapper.Message<?>> stream = null;
+    private GraphImpl graph;
 
     PublisherImpl(final Graph graph) {
         final Collection<Stage> stages = graph.getStages();
         final AtomicBoolean cancelled = new AtomicBoolean();
         final StageMapper stageMapper = new StageMapper(this, cancelled);
+        /* todo
         for (final Stage stage : stages) {
             if (stream == null && !stageMapper.isPublisher(stage)) {
                 throw new IllegalArgumentException(stage + " is not a publisher");
@@ -46,14 +46,15 @@ class PublisherImpl<T> implements Publisher<T> {
                 stream = stageMapper.map(stage).apply(stream);
             }
         }
+        */
     }
 
-    Stream<StageMapper.Message<?>> getStream() {
-        return stream;
+    public GraphImpl getGraph() {
+        return graph;
     }
 
     @Override
     public void subscribe(final Subscriber<? super T> subscriber) {
-        System.out.println("TODO: subscribe");
+        System.out.println("TODO: subscribe using the graph");
     }
 }

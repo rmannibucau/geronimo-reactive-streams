@@ -185,7 +185,7 @@ class StageMapper {
             final Function<Throwable, Graph> mapper = Stage.OnErrorResumeWith.class.cast(stage).getFunction();
             return stream -> stream.flatMap(it -> { // TODO: this impl is wrong
                 if (it.type == MessageType.ERROR) {
-                    return new PublisherImpl<>(mapper.apply(Throwable.class.cast(it.value))).getStream();
+                    // return new PublisherImpl<>(mapper.apply(Throwable.class.cast(it.value))).getStream();
                 }
                 return Stream.of(it);
             });
@@ -221,7 +221,7 @@ class StageMapper {
             final Graph g1 = concat.getFirst();
             final Graph g2 = concat.getSecond();
             // likely to revisit to not loose the FINISH element
-            return ignored -> Stream.concat(new PublisherImpl<>(g1).getStream(), new PublisherImpl<>(g2).getStream());
+            return ignored -> null;//Stream.concat(new PublisherImpl<>(g1).getStream(), new PublisherImpl<>(g2).getStream());
         } else if (Stage.Failed.class.isInstance(stage)) {
             final Throwable error = Stage.Failed.class.cast(stage).getError();
             return ignored -> Stream.of(new Message<>(MessageType.ERROR, error));
