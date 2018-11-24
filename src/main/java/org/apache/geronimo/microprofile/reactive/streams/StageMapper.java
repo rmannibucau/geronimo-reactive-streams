@@ -185,7 +185,7 @@ class StageMapper {
             final Function<Throwable, Graph> mapper = Stage.OnErrorResumeWith.class.cast(stage).getFunction();
             return stream -> stream.flatMap(it -> { // TODO: this impl is wrong
                 if (it.type == MessageType.ERROR) {
-                    // return new PublisherImpl<>(mapper.apply(Throwable.class.cast(it.value))).getStream();
+                    // return new PublisherImpl<>(mapper.apply(Throwable.class.wrap(it.value))).getStream();
                 }
                 return Stream.of(it);
             });
