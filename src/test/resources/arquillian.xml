@@ -23,17 +23,7 @@
       <property name="arquillianProtocol">Local</property>
       <property name="tempDir">target/meecrowave/temp</property>
       <property name="scanningExcludes">
-        bsh,
-        jcip,
-        nimbus,
-        org.osgi,
-        json,
-        arquillian,
-        microprofile-,
-        tagsoup,
-        rest-assured,
-        httpmime,
-        xml-path
+        # to complete if needed
       </property>
     </configuration>
   </container>
