@@ -16,6 +16,7 @@
  */
 package org.apache.geronimo.microprofile.reactive.streams;
 
+import java.util.Optional;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -31,77 +32,77 @@ import org.reactivestreams.Subscriber;
 // todo
 public class GeronimoReactiveStreamsFactory implements ReactiveStreamsFactory {
     @Override
-    public <T> PublisherBuilder<T> fromPublisher(Publisher<? extends T> publisher) {
-        return null;
+    public <T> PublisherBuilder<T> fromPublisher(final Publisher<? extends T> publisher) {
+        return new PublisherBuilderImpl<>(publisher);
     }
 
     @Override
-    public <T> PublisherBuilder<T> of(T t) {
-        return null;
+    public <T> PublisherBuilder<T> of(final T t) {
+        return new PublisherBuilderImpl<>(new OfSubscriber<>(t));
     }
 
     @Override
-    public <T> PublisherBuilder<T> of(T... ts) {
-        return null;
+    public <T> PublisherBuilder<T> of(final T... ts) {
+        return new PublisherBuilderImpl<>(new OfSubscriber<>(ts));
     }
 
     @Override
     public <T> PublisherBuilder<T> empty() {
-        return null;
+        return new PublisherBuilderImpl<>(new OfSubscriber<>());
     }
 
     @Override
-    public <T> PublisherBuilder<T> ofNullable(T t) {
-        return null;
+    public <T> PublisherBuilder<T> ofNullable(final T t) {
+        return Optional.ofNullable(t).map(this::of).orElseGet(this::empty);
     }
 
     @Override
-    public <T> PublisherBuilder<T> fromIterable(Iterable<? extends T> ts) {
-        return null;
+    public <T> PublisherBuilder<T> fromIterable(final Iterable<? extends T> ts) {
+        return new PublisherBuilderImpl<>(new OfSubscriber<>(ts));
     }
 
     @Override
-    public <T> PublisherBuilder<T> failed(Throwable t) {
-        return null;
+    public <T> PublisherBuilder<T> failed(final Throwable t) {
+        return new PublisherBuilderImpl<>(new FailedSubscriber<>(t));
     }
 
     @Override
     public <T> ProcessorBuilder<T, T> builder() {
+        return new ProcessorBuilderImpl<>();
+    }
+
+    @Override
+    public <T, R> ProcessorBuilder<T, R> fromProcessor(final Processor<? super T, ? extends R> processor) {
         return null;
     }
 
     @Override
-    public <T, R> ProcessorBuilder<T, R> fromProcessor(Processor<? super T, ? extends R> processor) {
+    public <T> SubscriberBuilder<T, Void> fromSubscriber(final Subscriber<? extends T> subscriber) {
         return null;
     }
 
     @Override
-    public <T> SubscriberBuilder<T, Void> fromSubscriber(Subscriber<? extends T> subscriber) {
+    public <T> PublisherBuilder<T> iterate(final T seed, final UnaryOperator<T> f) {
         return null;
     }
 
     @Override
-    public <T> PublisherBuilder<T> iterate(T seed, UnaryOperator<T> f) {
+    public <T> PublisherBuilder<T> generate(final Supplier<? extends T> s) {
         return null;
     }
 
     @Override
-    public <T> PublisherBuilder<T> generate(Supplier<? extends T> s) {
+    public <T> PublisherBuilder<T> concat(final PublisherBuilder<? extends T> a, final PublisherBuilder<? extends T> b) {
         return null;
     }
 
     @Override
-    public <T> PublisherBuilder<T> concat(PublisherBuilder<? extends T> a, PublisherBuilder<? extends T> b) {
+    public <T> PublisherBuilder<T> fromCompletionStage(final CompletionStage<? extends T> completionStage) {
         return null;
     }
 
     @Override
-    public <T> PublisherBuilder<T> fromCompletionStage(CompletionStage<? extends T> completionStage) {
-        return null;
-    }
-
-    @Override
-    public <T> PublisherBuilder<T> fromCompletionStageNullable(CompletionStage<? extends T> completionStage) {
+    public <T> PublisherBuilder<T> fromCompletionStageNullable(final CompletionStage<? extends T> completionStage) {
         return null;
     }
 }
