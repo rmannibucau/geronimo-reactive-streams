@@ -3,6 +3,7 @@ package org.apache.geronimo.microprofile.reactive.streams;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.BinaryOperator;
 import java.util.function.Consumer;
@@ -17,161 +18,135 @@ import org.eclipse.microprofile.reactive.streams.ProcessorBuilder;
 import org.eclipse.microprofile.reactive.streams.PublisherBuilder;
 import org.eclipse.microprofile.reactive.streams.SubscriberBuilder;
 import org.eclipse.microprofile.reactive.streams.spi.ReactiveStreamsEngine;
-import org.eclipse.microprofile.reactive.streams.spi.Stage;
 import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
-import org.reactivestreams.Subscription;
 
-public class PublisherBuilderImpl<T> extends GraphBasedBuilder<T> implements PublisherBuilder<T> {
+public class PublisherBuilderImpl<T> implements PublisherBuilder<T>, GraphAware {
+    private final GraphBuilder<T> graphBuilder;
+
     public PublisherBuilderImpl(final GraphImpl graph) {
-        super(graph);
+        graphBuilder = new GraphBuilder<>(graph);
+    }
+
+    @Override
+    public GraphImpl getGraph() {
+        return graphBuilder.getGraph();
     }
 
     @Override
     public <R> PublisherBuilder<R> map(Function<? super T, ? extends R> mapper) {
-        return (PublisherBuilder<R>) super.map(mapper);
+        return new PublisherBuilderImpl<>(graphBuilder.map(mapper));
     }
 
     @Override
     public <S> PublisherBuilder<S> flatMap(Function<? super T, ? extends PublisherBuilder<? extends S>> mapper) {
-        return (PublisherBuilder<S>) super.flatMap(mapper);
+        return new PublisherBuilderImpl<>(graphBuilder.flatMap(mapper));
     }
 
     @Override
     public <S> PublisherBuilder<S> flatMapRsPublisher(Function<? super T, ? extends Publisher<? extends S>> mapper) {
-        return (PublisherBuilder<S>) super.flatMapRsPublisher(mapper);
+        return new PublisherBuilderImpl<>(graphBuilder.flatMapRsPublisher(mapper));
     }
 
     @Override
     public <S> PublisherBuilder<S> flatMapCompletionStage(Function<? super T, ? extends CompletionStage<? extends S>> mapper) {
-        return (PublisherBuilder<S>) super.flatMapCompletionStage(mapper);
+        return new PublisherBuilderImpl<>(graphBuilder.flatMapCompletionStage(mapper));
     }
 
     @Override
     public <S> PublisherBuilder<S> flatMapIterable(Function<? super T, ? extends Iterable<? extends S>> mapper) {
-        return (PublisherBuilder<S>) super.flatMapIterable(mapper);
+        return new PublisherBuilderImpl<>(graphBuilder.flatMapIterable(mapper));
     }
 
     @Override
     public PublisherBuilder<T> filter(Predicate<? super T> predicate) {
-        return (PublisherBuilder<T>) super.filter(predicate);
+        return new PublisherBuilderImpl<>(graphBuilder.filter(predicate));
     }
 
     @Override
     public PublisherBuilder<T> distinct() {
-        return (PublisherBuilder<T>) super.distinct();
+        return new PublisherBuilderImpl<>(graphBuilder.distinct());
     }
 
     @Override
     public PublisherBuilder<T> limit(long maxSize) {
-        return (PublisherBuilder<T>) super.limit(maxSize);
+        return new PublisherBuilderImpl<>(graphBuilder.limit(maxSize));
     }
 
     @Override
     public PublisherBuilder<T> skip(long n) {
-        return (PublisherBuilder<T>) super.skip(n);
+        return new PublisherBuilderImpl<>(graphBuilder.skip(n));
     }
 
     @Override
     public PublisherBuilder<T> takeWhile(Predicate<? super T> predicate) {
-        return (PublisherBuilder<T>) super.takeWhile(predicate);
+        return new PublisherBuilderImpl<>(graphBuilder.takeWhile(predicate));
     }
 
     @Override
     public PublisherBuilder<T> dropWhile(Predicate<? super T> predicate) {
-        return (PublisherBuilder<T>) super.dropWhile(predicate);
+        return new PublisherBuilderImpl<>(graphBuilder.dropWhile(predicate));
     }
 
     @Override
     public PublisherBuilder<T> peek(Consumer<? super T> consumer) {
-        return (PublisherBuilder<T>) super.peek(consumer);
+        return new PublisherBuilderImpl<>(graphBuilder.peek(consumer));
     }
 
     @Override
     public PublisherBuilder<T> onError(Consumer<Throwable> errorHandler) {
-        return (PublisherBuilder<T>) super.onError(errorHandler);
+        return new PublisherBuilderImpl<>(graphBuilder.onError(errorHandler));
     }
 
     @Override
     public PublisherBuilder<T> onTerminate(Runnable action) {
-        return (PublisherBuilder<T>) super.onTerminate(action);
+        return new PublisherBuilderImpl<>(graphBuilder.onTerminate(action));
     }
 
     @Override
     public PublisherBuilder<T> onComplete(Runnable action) {
-        return (PublisherBuilder<T>) super.onComplete(action);
+        return new PublisherBuilderImpl<>(graphBuilder.onComplete(action));
     }
 
     @Override
     public PublisherBuilder<T> onErrorResume(Function<Throwable, ? extends T> errorHandler) {
-        return (PublisherBuilder<T>) super.onErrorResume(errorHandler);
+        return new PublisherBuilderImpl<>(graphBuilder.onErrorResume(errorHandler));
     }
 
     @Override
     public PublisherBuilder<T> onErrorResumeWith(Function<Throwable, ? extends PublisherBuilder<? extends T>> errorHandler) {
-        return (PublisherBuilder<T>) super.onErrorResumeWith(errorHandler);
+        return new PublisherBuilderImpl<>(graphBuilder.onErrorResumeWith(errorHandler));
     }
 
     @Override
     public PublisherBuilder<T> onErrorResumeWithRsPublisher(Function<Throwable, ? extends Publisher<? extends T>> errorHandler) {
-        return (PublisherBuilder<T>) super.onErrorResumeWithRsPublisher(errorHandler);
+        return new PublisherBuilderImpl<>(graphBuilder.onErrorResumeWithRsPublisher(errorHandler));
     }
 
     @Override
     public <R> PublisherBuilder<R> via(ProcessorBuilder<? super T, ? extends R> processor) {
-        return (PublisherBuilder<R>) super.via(processor);
+        return new PublisherBuilderImpl<>(graphBuilder.via(processor));
     }
 
     @Override
     public <R> PublisherBuilder<R> via(Processor<? super T, ? extends R> processor) {
-        return (PublisherBuilder<R>) super.via(processor);
+        return new PublisherBuilderImpl<>(graphBuilder.via(processor));
     }
 
     @Override
     public CompletionRunner<Void> to(final Subscriber<? super T> subscriber) {
-        return new CompletionRunnerImpl<>(getGraph().append((Stage.SubscriberStage) () -> subscriber));
+        return new CompletionRunnerImpl<>(graphBuilder.to(subscriber));
     }
 
     @Override
     public <R> CompletionRunner<R> to(final SubscriberBuilder<? super T, ? extends R> subscriber) {
-        return new CompletionRunnerImpl<>(getGraph().append((Stage.SubscriberStage) subscriber::build));
-    }
-
-    @Override
-    protected <R> R wrap(final GraphImpl graph) {
-        return (R) new PublisherBuilderImpl(graph);
+        return new CompletionRunnerImpl<>(graphBuilder.to(subscriber));
     }
 
     @Override
     public CompletionRunner<Void> forEach(final Consumer<? super T> action) {
-        return new CompletionRunnerImpl<>(getGraph().append((Stage.SubscriberStage) () -> new Subscriber<T>() {
-            @Override
-            public void onSubscribe(final Subscription s) {
-                // no-op
-            }
-
-            @Override
-            public void onNext(final Object o) {
-                action.accept((T) o);
-            }
-
-            @Override
-            public void onError(final Throwable t) {
-                if (RuntimeException.class.isInstance(t)) {
-                    throw RuntimeException.class.cast(t);
-                }
-                if (Error.class.isInstance(t)) {
-                    throw Error.class.cast(t);
-                }
-                throw new IllegalStateException(t);
-            }
-
-            @Override
-            public void onComplete() {
-                // no-op
-            }
-        }));
+        return new CompletionRunnerImpl<>(graphBuilder.peek(action));
     }
 
     @Override
@@ -181,38 +156,31 @@ public class PublisherBuilderImpl<T> extends GraphBasedBuilder<T> implements Pub
 
     @Override
     public CompletionRunner<Void> cancel() {
-        return new CompletionRunnerImpl<>(getGraph().append(new Stage.Cancel() {}));
+        return new CompletionRunnerImpl<>(graphBuilder.cancel());
     }
 
     @Override
     public CompletionRunner<T> reduce(final T identity, final BinaryOperator<T> accumulator) {
-        final CompletionRunner<Optional<T>> delegate = reduce(accumulator);
-        return new CompletionRunner<T>() {
-            @Override
-            public CompletionStage<T> run() {
-                return delegate.run().thenApply(it -> it.orElse(identity));
-            }
-
-            @Override
-            public CompletionStage<T> run(final ReactiveStreamsEngine engine) {
-                return delegate.run(engine).thenApply(it -> it.orElse(identity));
-            }
-        };
+        final Collector<T, AtomicReference<Optional<T>>, Optional<T>> collector = graphBuilder.getReduceCollector(accumulator);
+        final Collector<T, AtomicReference<Optional<T>>, T> newCollector = Collector.of(
+                collector.supplier(), collector.accumulator(), collector.combiner(),
+                ref -> collector.finisher().apply(ref).orElse(identity));
+        return collect(newCollector);
     }
 
     @Override
     public CompletionRunner<Optional<T>> reduce(final BinaryOperator<T> accumulator) {
-        return collect(getReduceCollector(accumulator));
+        return collect(graphBuilder.getReduceCollector(accumulator));
     }
 
     @Override
     public CompletionRunner<Optional<T>> findFirst() {
-        return new CompletionRunnerImpl<>(getGraph().append(new Stage.FindFirst() {}));
+        return new CompletionRunnerImpl<>(graphBuilder.findFirst());
     }
 
     @Override
     public <R, A> CompletionRunner<R> collect(final Collector<? super T, A, R> collector) {
-        return new CompletionRunnerImpl<>(getGraph().append((Stage.Collect) () -> collector));
+        return new CompletionRunnerImpl<>(graphBuilder.collect(collector));
     }
 
     @Override

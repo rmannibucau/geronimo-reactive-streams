@@ -25,7 +25,7 @@ import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 
 // todo: reimplement a light stream (we don't need all features just map, flatmap and filter) to support this pging model
-class PublisherImpl<T> implements Publisher<T> {
+class PublisherImpl<T> implements Publisher<T>, GraphAware {
     private GraphImpl graph;
 
     PublisherImpl(final Graph graph) {
@@ -49,6 +49,7 @@ class PublisherImpl<T> implements Publisher<T> {
         */
     }
 
+    @Override
     public GraphImpl getGraph() {
         return graph;
     }

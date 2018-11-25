@@ -17,10 +17,10 @@
 package org.apache.geronimo.microprofile.reactive.streams;
 
 import static java.util.Arrays.asList;
-import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 
-import java.util.Collections;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Supplier;
@@ -30,12 +30,12 @@ import org.eclipse.microprofile.reactive.streams.ProcessorBuilder;
 import org.eclipse.microprofile.reactive.streams.PublisherBuilder;
 import org.eclipse.microprofile.reactive.streams.ReactiveStreamsFactory;
 import org.eclipse.microprofile.reactive.streams.SubscriberBuilder;
+import org.eclipse.microprofile.reactive.streams.spi.Graph;
 import org.eclipse.microprofile.reactive.streams.spi.Stage;
 import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 
-// todo
 public class GeronimoReactiveStreamsFactory implements ReactiveStreamsFactory {
     @Override
     public <T> PublisherBuilder<T> fromPublisher(final Publisher<? extends T> publisher) {
@@ -74,41 +74,76 @@ public class GeronimoReactiveStreamsFactory implements ReactiveStreamsFactory {
 
     @Override
     public <T> ProcessorBuilder<T, T> builder() {
-        return new ProcessorBuilderImpl<>();
+        return new ProcessorBuilderImpl<>(new GraphImpl());
     }
 
     @Override
     public <T, R> ProcessorBuilder<T, R> fromProcessor(final Processor<? super T, ? extends R> processor) {
-        return null;
+        return new ProcessorBuilderImpl<>(GraphAware.class.cast(processor).getGraph());
     }
 
     @Override
     public <T> SubscriberBuilder<T, Void> fromSubscriber(final Subscriber<? extends T> subscriber) {
-        return null;
+        return new SubscriberBuilderImpl<>(GraphAware.class.cast(subscriber).getGraph());
     }
 
     @Override
     public <T> PublisherBuilder<T> iterate(final T seed, final UnaryOperator<T> f) {
-        return null;
+        return generate(new Supplier<T>() {
+            private T current = seed;
+
+            @Override
+            public T get() {
+                return current = f.apply(current);
+            }
+        });
     }
 
     @Override
     public <T> PublisherBuilder<T> generate(final Supplier<? extends T> s) {
-        return null;
+        return new PublisherBuilderImpl<>(new GraphImpl().append((Stage.Of) () -> (Iterable<T>) () -> new Iterator<T>() {
+            private T next;
+
+            @Override
+            public boolean hasNext() {
+                if (next == null) {
+                    next = s.get();
+                }
+                return next != null;
+            }
+
+            @Override
+            public T next() {
+                if (!hasNext()) {
+                    throw new NoSuchElementException();
+                }
+                return next;
+            }
+        }));
     }
 
     @Override
     public <T> PublisherBuilder<T> concat(final PublisherBuilder<? extends T> a, final PublisherBuilder<? extends T> b) {
-        return null;
+        return new PublisherBuilderImpl<>(new GraphImpl().append(new Stage.Concat() {
+            @Override
+            public Graph getFirst() {
+                return GraphAware.class.cast(a).getGraph();
+            }
+
+            @Override
+            public Graph getSecond() {
+                return GraphAware.class.cast(b).getGraph();
+            }
+        }));
     }
 
     @Override
     public <T> PublisherBuilder<T> fromCompletionStage(final CompletionStage<? extends T> completionStage) {
-        return null;
+        return new PublisherBuilderImpl<>(new GraphImpl().append((Stage.FromCompletionStage) () -> completionStage));
     }
 
     @Override
     public <T> PublisherBuilder<T> fromCompletionStageNullable(final CompletionStage<? extends T> completionStage) {
-        return null;
+        return new PublisherBuilderImpl<>(new GraphImpl().append((Stage.FromCompletionStageNullable) () -> completionStage));
     }
 }
