@@ -1,9 +1,8 @@
 package org.apache.geronimo.microprofile.reactive.streams;
 
-import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 
-public class FailedSubscriber<T> implements Publisher<T> {
+public class FailedSubscriber<T> extends BasePublisher<T> {
     private final Throwable error;
 
     public FailedSubscriber(final Throwable t) {
@@ -11,9 +10,9 @@ public class FailedSubscriber<T> implements Publisher<T> {
     }
 
     @Override
-    public void subscribe(final Subscriber<? super T> subscriber) {
-        subscriber.onSubscribe(new SubscriptionImpl(this));
+    protected void onSubscribe(final Subscriber<? super T> subscriber) {
         subscriber.onError(error);
         subscriber.onComplete();
+        subscribed.remove(subscriber);
     }
 }

@@ -16,37 +16,18 @@
  */
 package org.apache.geronimo.microprofile.reactive.streams;
 
-import java.util.Collection;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.eclipse.microprofile.reactive.streams.spi.Graph;
+import org.apache.geronimo.microprofile.reactive.streams.execution.GraphExecution;
 import org.eclipse.microprofile.reactive.streams.spi.Stage;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 
-// todo: reimplement a light stream (we don't need all features just map, flatmap and filter) to support this pging model
 class PublisherImpl<T> implements Publisher<T>, GraphAware {
     private GraphImpl graph;
 
-    PublisherImpl(final Graph graph) {
-        final Collection<Stage> stages = graph.getStages();
-        final AtomicBoolean cancelled = new AtomicBoolean();
-        final StageMapper stageMapper = new StageMapper(this, cancelled);
-        /* todo
-        for (final Stage stage : stages) {
-            if (stream == null && !stageMapper.isPublisher(stage)) {
-                throw new IllegalArgumentException(stage + " is not a publisher");
-            } else if (stream == null) {
-                stream = Stream.concat(
-                        stageMapper.map(stage).apply(null),
-                        Stream.of(new StageMapper.Message<>(StageMapper.MessageType.FINISH, null)));
-            } else if (stageMapper.isLeaf(stage)) {
-                throw new IllegalArgumentException(stage + " is a leaf but expected a processor");
-            } else {
-                stream = stageMapper.map(stage).apply(stream);
-            }
-        }
-        */
+    PublisherImpl(final GraphImpl graph) {
+        this.graph = graph;
     }
 
     @Override
@@ -56,6 +37,19 @@ class PublisherImpl<T> implements Publisher<T>, GraphAware {
 
     @Override
     public void subscribe(final Subscriber<? super T> subscriber) {
-        System.out.println("TODO: subscribe using the graph");
+        final AtomicBoolean cancelled = new AtomicBoolean();
+        final StageMapper stageMapper = new StageMapper(cancelled);
+        GraphExecution<StageMapper.Message<?>> execution = null;
+        for (final Stage stage : graph.getStages()) {
+            if (execution == null && !StageMapper.isPublisher(stage)) {
+                throw new IllegalArgumentException(stage + " is not a publisher");
+            } else if (execution == null) {
+                execution = stageMapper.map(stage).apply(null);
+            } else if (StageMapper.isLeaf(stage)) {
+                throw new IllegalArgumentException(stage + " is a leaf but expected a processor");
+            } else {
+                execution = stageMapper.map(stage).apply(execution);
+            }
+        }
     }
 }

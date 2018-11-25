@@ -28,7 +28,7 @@ import org.reactivestreams.Publisher;
 public class GeronimoEngine implements ReactiveStreamsEngine {
     @Override
     public <T> Publisher<T> buildPublisher(final Graph graph) throws UnsupportedStageException {
-        return new PublisherImpl<>(graph);
+        return new PublisherImpl<>(GraphImpl.class.cast(graph));
     }
 
     @Override

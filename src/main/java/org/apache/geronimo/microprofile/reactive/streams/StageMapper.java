@@ -25,8 +25,8 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collector;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
+import org.apache.geronimo.microprofile.reactive.streams.execution.GraphExecution;
 import org.eclipse.microprofile.reactive.streams.spi.Graph;
 import org.eclipse.microprofile.reactive.streams.spi.Stage;
 import org.reactivestreams.Processor;
@@ -36,32 +36,29 @@ import org.reactivestreams.Subscription;
 
 // todo: likely drop Stream and use a custom light impl
 class StageMapper {
-    private final Publisher<?> publisher;
     private final AtomicBoolean cancelled;
 
-    StageMapper(final Publisher<?> publisher, final AtomicBoolean cancelled) {
-        this.publisher = publisher;
+    StageMapper(final AtomicBoolean cancelled) {
         this.cancelled = cancelled;
     }
 
-    public boolean isPublisher(final Stage stage) {
+    public static boolean isPublisher(final Stage stage) {
         return Stream.of(
                 Stage.Concat.class, Stage.Failed.class, Stage.Of.class, Stage.PublisherStage.class,
                 Stage.FromCompletionStage.class, Stage.FromCompletionStageNullable.class)
                      .anyMatch(it -> it.isInstance(stage));
     }
 
-    public boolean isLeaf(final Stage stage) {
+    public static boolean isLeaf(final Stage stage) {
         return Stream.of(Stage.Cancel.class, Stage.Collect.class, Stage.FindFirst.class, Stage.SubscriberStage.class).anyMatch(it -> it.isInstance(stage));
     }
 
-    public Function<Stream<Message<?>>, ?> leafMapper(final Stage stage) {
+    public Function<GraphExecution<Message<?>>, ?> leafMapper(final Stage stage) {
         if (Stage.FindFirst.class.isInstance(stage)) {
             return stream -> stream.filter(it -> it.type == MessageType.MESSAGE).findFirst();
         } else if (Stage.Cancel.class.isInstance(stage)) {
             return s -> {
                 cancelled.set(true);
-                s.close();
                 return null;
             };
         } else if (Stage.Collect.class.isInstance(stage)) {
@@ -93,20 +90,19 @@ class StageMapper {
         throw new IllegalArgumentException(stage + " is not a leaf");
     }
 
-    public Function<Stream<Message<?>>, Stream<Message<?>>> map(final Stage stage) {
+    public Function<GraphExecution<Message<?>>, GraphExecution<Message<?>>> map(final Stage stage) {
         if (Stage.FlatMapIterable.class.isInstance(stage)) {
             final Function mapper = Stage.FlatMapIterable.class.cast(stage).getMapper();
             return stream -> stream.flatMap(it -> {
                 if (it.type == MessageType.MESSAGE) {
                     try {
-                        return StreamSupport.stream(Iterable.class.cast(mapper.apply(it.value))
-                                                                  .spliterator(), false)
-                                            .map(val -> new Message<>(MessageType.MESSAGE, val));
+                        return GraphExecution.of(Iterable.class.cast(mapper.apply(it.value)).spliterator(), false)
+                                .map(val -> new Message<>(MessageType.MESSAGE, val));
                     } catch (final Throwable t) {
-                        return Stream.of(new Message<>(MessageType.ERROR, t));
+                        return GraphExecution.of(new Message<>(MessageType.ERROR, t));
                     }
                 }
-                return Stream.of(it);
+                return GraphExecution.of(it);
             });
         } else if (Stage.Peek.class.isInstance(stage)) {
             final Consumer consumer = Stage.Peek.class.cast(stage).getConsumer();
@@ -121,7 +117,7 @@ class StageMapper {
                 return it;
             });
         } else if (Stage.Distinct.class.isInstance(stage)) {
-            return Stream::distinct;
+            return GraphExecution::distinct;
         } else if (Stage.Skip.class.isInstance(stage)) {
             final AtomicLong remaining = new AtomicLong(Stage.Skip.class.cast(stage).getSkip());
             return stream -> stream.filter(it -> it.type != MessageType.MESSAGE || remaining.get() <= 0 || remaining.decrementAndGet() < 0);
@@ -163,13 +159,14 @@ class StageMapper {
             });
         } else if (Stage.Of.class.isInstance(stage)) {
             final Iterable<?> elements = Stage.Of.class.cast(stage).getElements();
-            return ignored -> Stream.of(elements).map(it -> new Message(MessageType.MESSAGE, it));
+            return ignored -> GraphExecution.of(elements).map(it -> new Message(MessageType.MESSAGE, it));
         } else if (Stage.OnError.class.isInstance(stage)) {
             final Consumer<Throwable> consumer = Stage.OnError.class.cast(stage).getConsumer();
-            return stream -> stream.peek(it -> {
+            return stream -> stream.map(it -> {
                 if (it.type == MessageType.ERROR) {
                     consumer.accept(Throwable.class.cast(it.value));
                 }
+                return it;
             });
         } else if (Stage.OnErrorResume.class.isInstance(stage)) {
             final Function<Throwable, ?> mapper = Stage.OnErrorResume.class.cast(stage).getFunction();
@@ -187,7 +184,7 @@ class StageMapper {
                 if (it.type == MessageType.ERROR) {
                     // return new PublisherImpl<>(mapper.apply(Throwable.class.wrap(it.value))).getStream();
                 }
-                return Stream.of(it);
+                return GraphExecution.of(it);
             });
         } else if (Stage.TakeWhile.class.isInstance(stage)) {
             final Predicate test = Stage.TakeWhile.class.cast(stage).getPredicate();
@@ -224,7 +221,7 @@ class StageMapper {
             return ignored -> null;//Stream.concat(new PublisherImpl<>(g1).getStream(), new PublisherImpl<>(g2).getStream());
         } else if (Stage.Failed.class.isInstance(stage)) {
             final Throwable error = Stage.Failed.class.cast(stage).getError();
-            return ignored -> Stream.of(new Message<>(MessageType.ERROR, error));
+            return ignored -> GraphExecution.of(new Message<>(MessageType.ERROR, error));
         } else if (Stage.FromCompletionStage.class.isInstance(stage)) {
             return map(
                     (Stage.FromCompletionStageNullable) () -> Stage.FromCompletionStage.class.cast(stage).getCompletionStage());
@@ -233,12 +230,12 @@ class StageMapper {
             // bad impl but ok to start, will need to be actually reactive
             try {
                 final Object value = mapper.toCompletableFuture().get();
-                return value == null ? ignored -> Stream.empty() : ignored -> Stream.of(new Message<>(MessageType.MESSAGE, value));
+                return value == null ? ignored -> GraphExecution.of() : ignored -> GraphExecution.of(new Message<>(MessageType.MESSAGE, value));
             } catch (final InterruptedException e) {
                 Thread.currentThread().interrupt();
-                return ignored -> Stream.empty();
+                return ignored -> GraphExecution.of();
             } catch (final ExecutionException e) {
-                return ignored -> Stream.of(new Message<>(MessageType.ERROR, e));
+                return ignored -> GraphExecution.of(new Message<>(MessageType.ERROR, e));
             }
         } else if (Stage.DropWhile.class.isInstance(stage)) {
             final Predicate test = Stage.DropWhile.class.cast(stage).getPredicate();
@@ -279,7 +276,7 @@ class StageMapper {
         } else if (Stage.ProcessorStage.class.isInstance(stage)) {  // todo: revisit
             final Processor processor = Stage.ProcessorStage.class.cast(stage).getRsProcessor();
             // todo: Subscriber handling
-            return stream -> stream.peek(it -> {
+            return stream -> stream.map(it -> {
                 switch (it.type) {
                     case MESSAGE:
                         processor.onNext(it.value);
@@ -295,6 +292,7 @@ class StageMapper {
                         break;
                     default:
                 }
+                return it;
             });
         }
         throw new IllegalArgumentException("Unsupported stage: " + stage);
